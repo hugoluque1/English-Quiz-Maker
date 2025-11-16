@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI English Quiz Generator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- jsPDF and jsPDF-AutoTable CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <!-- QR Code Generator CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+
+    <style>
+        /* Custom Styles */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Inter font from Google Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        /* Dark mode custom scrollbar */
+        .dark ::-webkit-scrollbar {
+            width: 12px;
+        }
+        .dark ::-webkit-scrollbar-track {
+            background: #1e293b; /* slate-800 */
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background-color: #334155; /* slate-700 */
+            border-radius: 20px;
+            border: 3px solid #1e293b; /* slate-800 */
+        }
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background-color: #475569; /* slate-600 */
+        }
+
+        /* Light mode custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 12px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9; /* slate-100 */
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1; /* slate-300 */
+            border-radius: 20px;
+            border: 3px solid #f1f5f9; /* slate-100 */
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: #94a3b8; /* slate-400 */
+        }
+
+        /* Custom loader animation */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loader {
+            display: inline-block;
+            animation: spin 1s linear infinite;
+            border-top-color: transparent;
+        }
+
+        /* Custom slide-in animation */
+        @keyframes slide-in {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-slide-in {
+            animation: slide-in 0.5s ease-out forwards;
+        }
+        
+        /* Custom fade-in animation */
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .animate-fade-in {
+            animation: fade-in 0.3s ease-out forwards;
+        }
+
+        /* Styling for prose (explanations) */
+        .prose {
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #1e293b; /* slate-800 */
+        }
+        .dark .prose strong {
+            color: #f1f5f9; /* slate-100 */
+        }
+        .prose em {
+            font-style: italic;
+        }
+        
+        /* Custom button shadows and transitions */
+        button {
+            transition: all 0.3s ease-in-out;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* --- NUEVO: Estilo para la respuesta correcta --- */
+        .correct-answer-highlight {
+            background-color: #dcfce7 !important; /* green-100 */
+            font-weight: 600;
+            border-radius: 6px;
+        }
+        .dark .correct-answer-highlight {
+            background-color: #14532d !important; /* dark:bg-green-900 */
+        }
+        .correct-answer-highlight::before {
+            content: '✔';
+            color: #16a34a; /* green-600 */
+            margin-right: 8px;
+            font-weight: bold;
+        }
+
+        /* --- NUEVO: Fondo Animado --- */
+        #background-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1; /* Detrás de todo el contenido */
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%;
+            animation: gradient-animation 15s ease infinite;
+        }
+
+        @keyframes gradient-animation {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+        /* El body necesita un fondo base para el modo claro/oscuro que oculte el gradiente si es necesario */
+        body {
+            background-color: #f1f5f9; /* slate-100 */
+        }
+        .dark body {
+            background-color: #0f172a; /* slate-900 */
+        }
+        /* Hacemos que los contenedores principales tengan fondo para tapar la animación */
+        body.bg-slate-100 {
+             background-color: transparent; /* Permitir que la animación se vea */
+        }
+         body.dark:bg-slate-900 {
+             background-color: transparent; /* Permitir que la animación se vea */
+        }
+        /* Ajustamos el body para que el fondo de la animación se vea */
+        body {
+            background-color: transparent !important; 
+        }
+
+    </style>
+    <script>
+        // Set theme on load
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-200 min-h-screen transition-colors duration-300">
+
+    <!-- NUEVO: Contenedor del Fondo Animado -->
+    <div id="background-animation"></div>
+
+    <!-- Header -->
+    <header class="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md shadow-md sticky top-0 z-10">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <div class="flex-shrink-0 flex items-center gap-2">
+                    <!-- Icon -->
+                    <svg class="w-8 h-8 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.508 1.333 1.508 2.316V18" />
+                    </svg>
+                    <h1 class="text-xl font-bold">AI English Quiz Generator</h1>
+                </div>
+                <!-- Theme Toggle -->
+                <button id="theme-toggle" class="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <svg id="theme-icon-light" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <svg id="theme-icon-dark" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl py-8">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- Left Column: Settings Form & Actions -->
+            <div class="lg:col-span-1 space-y-8 lg:sticky lg:top-24">
+                <form id="quiz-form" class="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md p-6 rounded-2xl shadow-lg space-y-6">
+                    <h2 class="text-2xl font-semibold border-b border-slate-300 dark:border-slate-600 pb-3">
+                        Quiz Settings | <a href="https://skillswise.netlify.app/" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline text-lg align-middle">Main Page</a>
+                    </h2>
+
+                    <!-- Topic -->
+                    <div>
+                        <label for="topic" class="block text-sm font-medium mb-1">Grammar Topic</label>
+                        <input type="text" id="topic" name="topic" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Present Perfect" required>
+                    </div>
+
+                    <!-- Level -->
+                    <div>
+                        <label for="level" class="block text-sm font-medium mb-1">English Level (CEFR)</label>
+                        <select id="level" name="level" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="A1">A1 (Beginner)</option>
+                            <option value="A2">A2 (Elementary)</option>
+                            <option value="B1" selected>B1 (Intermediate)</option>
+                            <option value="B2">B2 (Upper-Intermediate)</option>
+                            <option value="C1">C1 (Advanced)</option>
+                            <option value="C2">C2 (Proficiency)</option>
+                        </select>
+                    </div>
+
+                    <!-- Age Group -->
+                    <div>
+                        <label for="age" class="block text-sm font-medium mb-1">Target Age Group</label>
+                        <select id="age" name="age" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="Primary School">Primary School</option>
+                            <option value="Secondary School" selected>Secondary School</option>
+                            <option value="University">University</option>
+                            <option value="Adult">Adult</option>
+                        </select>
+                    </div>
+
+                    <!-- Vocabulary -->
+                    <div>
+                        <label for="vocabulary" class="block text-sm font-medium mb-1">Specific Vocabulary (Optional)</label>
+                        <input type="text" id="vocabulary" name="vocabulary" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., travel, technology, food">
+                    </div>
+
+                    <!-- Number of Questions -->
+                    <div>
+                        <label for="num-questions" class="block text-sm font-medium mb-1">Number of Questions</label>
+                        <select id="num-questions" name="numQuestions" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="20">20</option>
+                            <option value="30">30</option>
+                            <option value="40">40</option>
+                            <option value="50">50</option>
+                            <option value="60">60</option>
+                            <option value="70">70</option>
+                            <option value="80">80</option>
+                            <option value="90">90</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+
+                    <!-- Number of Alternatives -->
+                    <div>
+                        <label for="num-alternatives" class="block text-sm font-medium mb-1">Number of Alternatives</label>
+                        <select id="num-alternatives" name="numAlternatives" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="2">2 (A, B)</option>
+                            <option value="3">3 (A, B, C)</option>
+                            <option value="4" selected>4 (A, B, C, D)</option>
+                            <option value="5">5 (A, B, C, D, E)</option>
+                        </select>
+                    </div>
+
+                </form>
+
+                <!-- Action Buttons Panel (NEW) -->
+                <div id="actions-panel" class="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md p-6 rounded-2xl shadow-lg space-y-4">
+                    
+                    <!-- 1. Generate Button (MOVED HERE) -->
+                    <button type="button" id="generate-btn" class="w-full flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-all duration-300 ease-in-out transform hover:-translate-y-0.5 active:translate-y-0 active:shadow-inner">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M12 21v-1m0-16a.5.5 0 01.5.5v3a.5.5 0 01-1 0v-3a.5.5 0 01.5-.5zM12 6.5a.5.5 0 01.5.5v3a.5.5 0 01-1 0v-3a.5.5 0 01.5-.5z"></path></svg>
+                        <span>Generate Quiz</span>
+                        <span id="loading-spinner" class="loader w-5 h-5 border-4 border-t-blue-600 border-white rounded-full hidden"></span>
+                    </button>
+
+                    <!-- 2. Download Button (MOVED HERE & HIDDEN) -->
+                    <div class="flex flex-col sm:flex-row gap-4 hidden" id="download-btn-container">
+                        <button id="download-quiz-pdf" class="flex-1 flex justify-center items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-5 rounded-lg shadow-md transition-all duration-300 ease-in-out transform hover:-translate-y-0.5 active:translate-y-0">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            Download Quiz (PDF)
+                        </button>
+                    </div>
+
+                    <!-- 3. Explain Topic Button (MOVED HERE & HIDDEN) -->
+                    <div id="explain-topic-container" class="hidden">
+                        <button id="explain-topic-btn" class="w-full flex justify-center items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 px-5 rounded-lg shadow-md transition-all duration-300 ease-in-out transform hover:-translate-y-0.5 active:translate-y-0">
+                            <!-- Icono de chat -->
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a2 2 0 01-2-2V10a2 2 0 012-2h8z"></path></svg>
+                            ✨ Explain This Grammar Topic
+                        </button>
+                        <div id="explain-topic-spinner" class="loader w-6 h-6 border-4 border-t-purple-600 border-gray-200 rounded-full mx-auto my-4 hidden"></div>
+                        <div id="explain-topic-result" class="hidden mt-4 p-4 bg-slate-100 dark:bg-slate-700 rounded-lg prose dark:prose-invert max-w-none"></div>
+                    </div>
+
+                    <!-- 4. NUEVO: Botón para mostrar respuestas -->
+                    <div id="show-answers-container" class="hidden">
+                        <button id="show-answers-btn" class="w-full flex justify-center items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white font-medium py-3 px-5 rounded-lg shadow-md transition-all duration-300 ease-in-out transform hover:-translate-y-0.5 active:translate-y-0">
+                            <!-- Icono de Check -->
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Show Answers
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Right Column: Quiz Results -->
+            <div class="lg:col-span-2 space-y-8">
+
+                <!-- Results Placeholder -->
+                <div id="results-placeholder" class="flex flex-col items-center justify-center bg-white/90 dark:bg-slate-800/90 backdrop-blur-md p-12 rounded-2xl shadow-lg text-center min-h-[24rem] animate-fade-in">
+                    <svg class="w-16 h-16 text-slate-400 dark:text-slate-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <h3 class="text-xl font-semibold text-slate-600 dark:text-slate-300">Your quiz will appear here</h3>
+                    <p class="text-slate-500 dark:text-slate-400 mt-2">Configure your settings on the left and click "Generate Quiz" to begin.</p>
+                </div>
+
+                <!-- Error Message -->
+                <div id="error-message" class="hidden bg-red-100/90 dark:bg-red-900/90 backdrop-blur-md border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-4 py-3 rounded-lg shadow-lg animate-fade-in" role="alert">
+                    <strong class="font-bold">Generation Failed!</strong>
+                    <span id="error-text" class="block sm:inline">Something went wrong.</span>
+                </div>
+
+                <!-- Quiz Results Container -->
+                <div id="quiz-results" class="hidden bg-white/90 dark:bg-slate-800/90 backdrop-blur-md p-6 sm:p-8 rounded-2xl shadow-lg animate-slide-in">
+                    <!-- Quiz Header -->
+                    <div class="border-b border-slate-300 dark:border-slate-600 pb-4 mb-6">
+                        <h2 id="quiz-title" class="text-3xl font-bold text-blue-700 dark:text-blue-400"></h2>
+                        <div id="quiz-info" class="mt-2 text-sm text-slate-600 dark:text-slate-400 space-y-1">
+                            <!-- Info will be injected here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Quiz Content -->
+                    <div id="quiz-content" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                        <!-- Questions will be injected here -->
+                    </div>
+                </div>
+
+            </div>
+        </div> <!-- End main grid -->
+    </div> <!-- End container -->
+
+    <!-- Footer -->
+    <footer class="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md shadow-inner mt-12 py-4">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+            <p class="text-center text-sm text-slate-500 dark:text-slate-400">
+                Developed by Hugo Luque
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // --- Globals ---
+            const form = document.getElementById('quiz-form');
+            const generateBtn = document.getElementById('generate-btn');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const resultsPlaceholder = document.getElementById('results-placeholder');
+            const errorMessage = document.getElementById('error-message');
+            const quizResultsContainer = document.getElementById('quiz-results');
+            const quizTitleEl = document.getElementById('quiz-title');
+            const quizInfoEl = document.getElementById('quiz-info');
+            const quizContent = document.getElementById('quiz-content');
+            const errorText = document.getElementById('error-text');
+            const downloadQuizBtn = document.getElementById('download-quiz-pdf');
+            
+            // --- ✨ New Feature Elements ---
+            const explainTopicBtn = document.getElementById('explain-topic-btn');
+            const explainTopicSpinner = document.getElementById('explain-topic-spinner');
+            const explainTopicResult = document.getElementById('explain-topic-result');
+            
+            // --- ✨ Moved Elements (for showing/hiding) ---
+            const downloadBtnContainer = document.getElementById('download-btn-container');
+            const explainTopicContainer = document.getElementById('explain-topic-container');
+            const showAnswersBtn = document.getElementById('show-answers-btn');
+            const showAnswersContainer = document.getElementById('show-answers-container');
+
+            // --- PDF libraries check ---
+            const { jsPDF } = window.jspdf;
+            if (typeof jsPDF === 'undefined' || typeof jsPDF.API.autoTable === 'undefined') {
+                console.error('jsPDF or jsPDF-AutoTable not loaded!');
+                downloadQuizBtn.disabled = true;
+                downloadQuizBtn.textContent = 'PDF Error (Reload)';
+            }
+            
+            // --- Global State ---
+            let currentQuizData = null;
+            let isAnswersShown = false; // --- NUEVO: Estado para mostrar respuestas
+
+            // --- Dark Mode Toggle ---
+            const themeToggle = document.getElementById('theme-toggle');
+            const themeIconLight = document.getElementById('theme-icon-light');
+            const themeIconDark = document.getElementById('theme-icon-dark');
+
+            function updateThemeIcon(isDark) {
+                themeIconLight.classList.toggle('hidden', !isDark);
+                themeIconDark.classList.toggle('hidden', isDark);
+            }
+            updateThemeIcon(document.documentElement.classList.contains('dark'));
+
+            themeToggle.addEventListener('click', () => {
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.theme = isDark ? 'dark' : 'light';
+                updateThemeIcon(isDark);
+            });
+            
+            // --- ✨ New Feature: Explain Topic ---
+            explainTopicBtn.addEventListener('click', async () => {
+                if (!currentQuizData) return;
+                explainTopicSpinner.classList.remove('hidden');
+                explainTopicResult.classList.add('hidden');
+                explainTopicBtn.disabled = true;
+
+                try {
+                    const { quizTitle } = currentQuizData;
+                    const level = document.getElementById('level').value;
+                    const age = document.getElementById('age').value;
+                    const explanation = await fetchExplanation(quizTitle, level, age); 
+                    
+                    let htmlExplanation = escapeHTML(explanation)
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                        .replace(/\n/g, '<br>');
+
+                    explainTopicResult.innerHTML = htmlExplanation;
+                    explainTopicResult.classList.remove('hidden');
+
+                } catch (error) {
+                    explainTopicResult.innerHTML = `<p class="text-red-500">Error generating explanation: ${error.message}</p>`;
+                    explainTopicResult.classList.remove('hidden');
+                } finally {
+                    explainTopicSpinner.classList.add('hidden');
+                    explainTopicBtn.disabled = false;
+                }
+            });
+
+            // --- ✨ New Feature: Explain Answer (Event Delegation) ---
+            quizContent.addEventListener('click', async (e) => {
+                const btn = e.target.closest('.explain-answer-btn');
+                if (!btn) return;
+
+                const qIndex = parseInt(btn.dataset.qIndex, 10);
+                if (isNaN(qIndex) || !currentQuizData) return;
+
+                const spinner = document.getElementById(`explain-answer-spinner-${qIndex}`);
+                const resultContainer = document.getElementById(`explain-answer-result-${qIndex}`);
+                
+                if (!resultContainer.classList.contains('hidden')) {
+                    resultContainer.classList.add('hidden');
+                    return; 
+                }
+
+                spinner.classList.remove('hidden');
+                resultContainer.classList.add('hidden');
+                btn.disabled = true;
+
+                try {
+                    const question = currentQuizData.questions[qIndex];
+                    const level = document.getElementById('level').value;
+                    const explanation = await fetchAnswerExplanation(question, level);
+
+                    let htmlExplanation = escapeHTML(explanation)
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                        .replace(/\n/g, '<br>');
+
+                    resultContainer.innerHTML = htmlExplanation;
+                    resultContainer.classList.remove('hidden');
+
+                } catch (error) {
+                    resultContainer.innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`;
+                    resultContainer.classList.remove('hidden');
+                } finally {
+                    spinner.classList.add('hidden');
+                    btn.disabled = false;
+                }
+            });
+
+            // --- NUEVO: Botón para Mostrar/Ocultar Respuestas ---
+            showAnswersBtn.addEventListener('click', () => {
+                if (!currentQuizData) return;
+
+                isAnswersShown = !isAnswersShown; // Invertir el estado
+                
+                // Actualizar icono y texto
+                const iconSVG = isAnswersShown ? 
+                    `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7C3.732 7.943 7.522 5 12 5c1.73 0 3.352.67 4.65 1.775"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.606 17.606l-1.515-1.515M21.75 21.75L12 12m9.75 9.75L2.25 2.25"></path></svg>` : 
+                    `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+                showAnswersBtn.innerHTML = `${iconSVG} ${isAnswersShown ? 'Hide Answers' : 'Show Answers'}`;
+
+
+                currentQuizData.questions.forEach((q, index) => {
+                    const correctIndex = q.correctAnswerIndex;
+                    const correctOptionEl = document.getElementById(`q-${index}-opt-${correctIndex}`);
+                    if (correctOptionEl) {
+                        // Usar .toggle() para añadir o quitar la clase basado en el estado
+                        correctOptionEl.classList.toggle('correct-answer-highlight', isAnswersShown);
+                    }
+                });
+            });
+
+            // --- Form Submission (MODIFIED) ---
+            generateBtn.addEventListener('click', () => {
+                if (form.checkValidity()) {
+                    form.requestSubmit(); 
+                } else {
+                    form.reportValidity(); // Muestra el error de validación del navegador
+                }
+            });
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                hideError();
+                
+                try {
+                    const formData = new FormData(form);
+                    const settings = {
+                        topic: formData.get('topic'),
+                        level: formData.get('level'),
+                        age: formData.get('age'),
+                        vocabulary: formData.get('vocabulary'),
+                        numQuestions: parseInt(formData.get('numQuestions'), 10),
+                        numAlternatives: parseInt(formData.get('numAlternatives'), 10),
+                    };
+
+                    const aiResponse = await fetchQuizFromAI(settings);
+                    
+                    if (!aiResponse || !aiResponse.quizTitle || !aiResponse.questions || !Array.isArray(aiResponse.questions) || aiResponse.questions.length === 0) {
+                        console.error('Invalid response structure from AI:', aiResponse);
+                        throw new Error('AI returned an invalid or empty quiz structure.');
+                    }
+                    
+                    currentQuizData = aiResponse; 
+                    displayQuiz(currentQuizData); 
+
+                } catch (error) {
+                    console.error('Error during quiz generation:', error);
+                    displayError(error.message || 'Failed to generate quiz. Check console for details.');
+                } finally {
+                    setLoading(false);
+                }
+            });
+
+            // --- AI API Call ---
+            async function fetchQuizFromAI(settings) {
+                const apiKey = ""; // API key is handled by the environment
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+                const systemPrompt = `You are an expert ESL (English as a Second Language) quiz generator. You follow formatting standards similar to Cambridge and Oxford.
+                You MUST return ONLY a valid JSON object. Do not include markdown (e.g., \`\`\`json).
+                The JSON object must follow this exact schema:
+                {
+                  "quizTitle": "string (e.g., 'Present Simple vs. Present Continuous (B1)')",
+                  "instructions": "string (e.g., 'Choose the best option to complete each sentence.')",
+                  "estimatedTimeMinutes": number (Calculate roughly 40 seconds per question),
+                  "questions": [
+                    {
+                      "questionText": "string (The question, e.g., 'She ___ (work) here since 2010.')",
+                      "options": ["string", "string", ...],
+                      "correctAnswerIndex": number (0-based index of the correct option)
+                    }
+                  ]
+                }
+                Ensure the number of questions and alternatives matches the user's request.
+                If specific vocabulary is provided, try to include it in the questions or options naturally.
+                The difficulty must be appropriate for the requested CEFR level and age group.`;
+                
+                const userQuery = `Generate an ESL quiz with these settings:
+                - Topic: ${settings.topic}
+                - Level: ${settings.level}
+                - Age Group: ${settings.age}
+                - Number of Questions: ${settings.numQuestions}
+                - Number of Alternatives per Question: ${settings.numAlternatives}
+                - Specific Vocabulary: ${settings.vocabulary || 'none'}`;
+                
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        temperature: 0.7,
+                    }
+                };
+
+                let response;
+                let retries = 3;
+                let delay = 1000;
+
+                for (let i = 0; i < retries; i++) {
+                    try {
+                        response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (response.ok) {
+                            const result = await response.json();
+                            const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                            if (jsonText) {
+                                return JSON.parse(jsonText); // Success
+                            } else {
+                                throw new Error('AI returned empty or invalid content.');
+                            }
+                        } else {
+                            // Handle non-OK API responses (e.g., 400, 500)
+                            const errorResult = await response.json().catch(() => ({})); // Try to parse error
+                            const errorMsg = errorResult?.error?.message || `API Error: ${response.status} ${response.statusText}`;
+                            throw new Error(errorMsg);
+                        }
+                    } catch (error) {
+                        // Handle fetch errors (network, JSON parsing)
+                        console.warn(`Attempt ${i + 1} failed:`, error.message);
+                        if (i === retries - 1) {
+                            // This was the last retry, re-throw the error
+                            throw new Error(`Failed to fetch from AI after ${retries} attempts: ${error.message}`);
+                        }
+                        // Wait for the delay before next retry
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2; // Exponential backoff
+                    }
+                } // End of for loop
+                
+                throw new Error('AI generation failed after all retries.');
+            }
+
+            // --- ✨ New Function: Fetch Topic Explanation ---
+            async function fetchExplanation(topic, level, age) {
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                const systemPrompt = `You are a friendly and clear ESL tutor. Explain the following grammar topic.
+                Keep the explanation simple and appropriate for the target level and age.
+                Use simple examples. Use markdown for formatting (like *bold* or *italics*).
+                Do NOT use headers or lists, just a single, clear explanation in paragraphs.`;
+                const userQuery = `Explain the topic "${topic}" for a ${level} level student who is in ${age}.`;
+                
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] }
+                };
+                
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error('Failed to fetch explanation.');
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!text) throw new Error('Empty explanation returned.');
+                return text;
+            }
+
+            // --- ✨ New Function: Fetch Answer Explanation ---
+            async function fetchAnswerExplanation(question, level) {
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                const systemPrompt = `You are an ESL tutor. Explain *why* the correct answer is correct for the given multiple-choice question.
+                Keep the explanation concise (2-3 sentences) and suitable for the student's level.
+                Directly address the grammar rule. Use markdown for formatting.`;
+                
+                const { questionText, options, correctAnswerIndex } = question;
+                const correctAnswer = options[correctAnswerIndex];
+                
+                const userQuery = `For a ${level} student, explain why "${correctAnswer}" is the correct answer for this question:
+                Question: "${questionText}"
+                Options: ${options.join(', ')}
+                Correct Answer: ${correctAnswer}`;
+                
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] }
+                };
+                
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error('Failed to fetch answer explanation.');
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!text) throw new Error('Empty explanation returned.');
+                return text;
+            }
+
+            // --- UI Helper Functions ---
+            function setLoading(isLoading) {
+                generateBtn.disabled = isLoading;
+                loadingSpinner.classList.toggle('hidden', !isLoading);
+                const btnText = generateBtn.querySelector('span:not(#loading-spinner)');
+                if (btnText) {
+                    btnText.textContent = isLoading ? 'Generating...' : 'Generate Quiz';
+                }
+            }
+
+            function hideError() {
+                errorMessage.classList.add('hidden');
+            }
+
+            function displayError(message) {
+                errorText.textContent = message;
+                errorMessage.classList.remove('hidden');
+                quizResultsContainer.classList.add('hidden');
+                resultsPlaceholder.classList.remove('hidden');
+                
+                // Ocultar botones de acciones
+                downloadBtnContainer.classList.add('hidden');
+                explainTopicContainer.classList.add('hidden');
+                showAnswersContainer.classList.add('hidden');
+            }
+
+            function escapeHTML(str) {
+                if (!str) return '';
+                return str.replace(/[&<>"']/g, (match) => {
+                    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+                    return map[match];
+                });
+            }
+            
+            function displayQuiz(data) {
+                resultsPlaceholder.classList.add('hidden');
+                quizResultsContainer.classList.remove('hidden');
+
+                // Reset state
+                isAnswersShown = false;
+                showAnswersBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Show Answers`;
+                explainTopicResult.classList.add('hidden');
+                explainTopicResult.innerHTML = '';
+
+
+                // Populate header
+                quizTitleEl.textContent = data.quizTitle;
+                const vocab = document.getElementById('vocabulary').value;
+                quizInfoEl.innerHTML = `
+                    <p><strong>Instructions:</strong> ${escapeHTML(data.instructions)}</p>
+                    <p><strong>Level:</strong> ${document.getElementById('level').value} | <strong>Age:</strong> ${document.getElementById('age').value} ${vocab ? `| <strong>Vocab:</strong> ${escapeHTML(vocab)}` : ''}</p>
+                    <p><strong>Questions:</strong> ${data.questions.length} | <strong>Est. Time:</strong> ${data.estimatedTimeMinutes} mins</p>
+                `;
+
+                // Populate questions
+                quizContent.innerHTML = data.questions.map((q, qIndex) => {
+                    const optionsHTML = q.options.map((opt, oIndex) => `
+                        <li id="q-${qIndex}-opt-${oIndex}" class="p-2 transition-colors duration-200">
+                            <span class="font-medium mr-2">${String.fromCharCode(65 + oIndex)}.</span> ${escapeHTML(opt)}
+                        </li>
+                    `).join('');
+
+                    return `
+                        <div class="border-t border-slate-200 dark:border-slate-700 pt-6 space-y-3 break-inside-avoid-column">
+                            <p class="font-semibold">${qIndex + 1}. ${escapeHTML(q.questionText)}</p>
+                            <ul class="space-y-1 list-none pl-0">
+                                ${optionsHTML}
+                            </ul>
+                            <!-- Explain Answer Button & Container -->
+                            <div class="pt-2">
+                                <button class="explain-answer-btn text-xs text-blue-600 dark:text-blue-400 hover:underline" data-q-index="${qIndex}">
+                                    Explain Answer
+                                </button>
+                                <span id="explain-answer-spinner-${qIndex}" class="loader w-4 h-4 border-2 border-t-blue-600 border-gray-200 rounded-full hidden ml-2 align-middle"></span>
+                                <div id="explain-answer-result-${qIndex}" class="hidden mt-2 p-2 bg-slate-100 dark:bg-slate-700 rounded-md text-sm prose dark:prose-invert max-w-none"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                // Show the action buttons
+                downloadBtnContainer.classList.remove('hidden');
+                explainTopicContainer.classList.remove('hidden');
+                showAnswersContainer.classList.remove('hidden');
+            }
+
+            // --- PDF Download Logic ---
+            downloadQuizBtn.addEventListener('click', () => {
+                if (!currentQuizData) return;
+
+                try {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
+                    const topic = currentQuizData.quizTitle;
+                    const instructions = currentQuizData.instructions;
+                    const questions = currentQuizData.questions;
+
+                    // --- QR Code ---
+                    const qrCanvas = document.createElement('canvas');
+                    new QRious({
+                        element: qrCanvas,
+                        value: window.location.href, // Link to the current app
+                        size: 80 // Increase size for better quality in PDF
+                    });
+                    const qrDataURL = qrCanvas.toDataURL('image/png');
+                    
+                    // --- PDF Header ---
+                    const header = (data) => {
+                        doc.setFontSize(18);
+                        doc.setTextColor(40, 40, 40);
+                        doc.text(topic, doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
+                        
+                        doc.setFontSize(11);
+                        doc.setTextColor(100);
+                        doc.text(instructions, doc.internal.pageSize.getWidth() / 2, 30, { align: 'center' });
+
+                        doc.setFontSize(9);
+                        doc.text(`Level: ${document.getElementById('level').value} | Questions: ${questions.length}`, 20, 40);
+                        
+                        // Add QR code
+                        doc.addImage(qrDataURL, 'PNG', doc.internal.pageSize.getWidth() - 35, 15, 20, 20);
+                        doc.setFontSize(8);
+                        doc.text("Scan to practice", doc.internal.pageSize.getWidth() - 25, 40, {align: 'center'});
+                    };
+
+                    // --- PDF Footer ---
+                    const footer = (data) => {
+                        const pageCount = doc.internal.getNumberOfPages();
+                        doc.setFontSize(8);
+                        doc.setTextColor(150);
+                        doc.text("Page " + data.pageNumber + " of " + pageCount, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+                        doc.text(`Generated by AI English Quiz Generator`, 20, doc.internal.pageSize.getHeight() - 10);
+                    };
+
+                    // --- Create Student Version Table ---
+                    const studentBody = questions.map((q, i) => {
+                        const options = q.options.map((opt, oi) => `${String.fromCharCode(65 + oi)}. ${opt}`).join('\n');
+                        return [
+                            `${i + 1}. ${q.questionText}`,
+                            options
+                        ];
+                    });
+
+                    doc.autoTable({
+                        startY: 50,
+                        head: [['Question', 'Options']],
+                        body: studentBody,
+                        didDrawPage: (data) => { header(data); footer(data); },
+                        margin: { top: 45, bottom: 20 },
+                        styles: {
+                            cellPadding: 2.5,
+                            fontSize: 10,
+                            valign: 'top',
+                            lineColor: [200, 200, 200],
+                            lineWidth: 0.1
+                        },
+                        headStyles: {
+                            fillColor: [23, 37, 84], // dark-blue
+                            textColor: [255, 255, 255],
+                            fontSize: 11,
+                            fontStyle: 'bold'
+                        },
+                        columnStyles: {
+                            0: { cellWidth: 'auto' },
+                            1: { cellWidth: 70 }
+                        }
+                    });
+
+                    // --- Add Answer Key Page ---
+                    doc.addPage();
+                    doc.setFontSize(16);
+                    doc.text("Answer Key", doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
+                    
+                    const answerKeyBody = questions.map((q, i) => {
+                        const correctLetter = String.fromCharCode(65 + q.correctAnswerIndex);
+                        const correctText = q.options[q.correctAnswerIndex];
+                        return [
+                            `${i + 1}`,
+                            `${correctLetter}. ${correctText}`
+                        ];
+                    });
+
+                    doc.autoTable({
+                        startY: 30,
+                        head: [['#', 'Correct Answer']],
+                        body: answerKeyBody,
+                        didDrawPage: (data) => { footer(data); }, // No header on answer key
+                        margin: { top: 25, bottom: 20 },
+                        headStyles: {
+                            fillColor: [23, 37, 84],
+                            textColor: [255, 255, 255],
+                            fontStyle: 'bold'
+                        },
+                        theme: 'grid'
+                    });
+
+                    // --- Save PDF ---
+                    doc.save(`${topic.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_quiz.pdf`);
+
+                } catch (err) {
+                    console.error("Failed to generate PDF:", err);
+                    displayError(`Failed to generate PDF. See console for details.`);
+                }
+            });
+
+        }); // End of DOMContentLoaded
+    </script>
+</body>
+</html>
