@@ -216,6 +216,15 @@
                         Quiz Settings | <a href="https://skillswise.netlify.app/" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline text-lg align-middle">Main Page</a>
                     </h2>
 
+                    <!-- NUEVO: API Key Input -->
+                    <div>
+                        <label for="api-key" class="block text-sm font-medium mb-1">API Key</label>
+                        <input type="password" id="api-key" name="apiKey" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your API Key" required>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
+                            Get your free key from <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">Google AI Studio</a>.
+                        </p>
+                    </div>
+
                     <!-- Topic -->
                     <div>
                         <label for="topic" class="block text-sm font-medium mb-1">Grammar Topic</label>
@@ -428,6 +437,15 @@
             // --- ✨ New Feature: Explain Topic ---
             explainTopicBtn.addEventListener('click', async () => {
                 if (!currentQuizData) return;
+                
+                // NUEVO: Check de API Key
+                const apiKey = document.getElementById('api-key').value;
+                if (!apiKey) {
+                    explainTopicResult.innerHTML = `<p class="text-red-500">Error: Please enter your API Key in the settings.</p>`;
+                    explainTopicResult.classList.remove('hidden');
+                    return;
+                }
+
                 explainTopicSpinner.classList.remove('hidden');
                 explainTopicResult.classList.add('hidden');
                 explainTopicBtn.disabled = true;
@@ -460,11 +478,23 @@
                 const btn = e.target.closest('.explain-answer-btn');
                 if (!btn) return;
 
+                // NUEVO: Check de API Key
+                const apiKey = document.getElementById('api-key').value;
                 const qIndex = parseInt(btn.dataset.qIndex, 10);
+                const resultContainer = document.getElementById(`explain-answer-result-${qIndex}`);
+                
+                if (!apiKey) {
+                    if (resultContainer) {
+                        resultContainer.innerHTML = `<p class="text-red-500">Error: Please enter your API Key.</p>`;
+                        resultContainer.classList.remove('hidden');
+                    }
+                    return; 
+                }
+
                 if (isNaN(qIndex) || !currentQuizData) return;
 
                 const spinner = document.getElementById(`explain-answer-spinner-${qIndex}`);
-                const resultContainer = document.getElementById(`explain-answer-result-${qIndex}`);
+                // const resultContainer = document.getElementById(`explain-answer-result-${qIndex}`); // Ya definido arriba
                 
                 if (!resultContainer.classList.contains('hidden')) {
                     resultContainer.classList.add('hidden');
@@ -531,6 +561,14 @@
 
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
+
+                // NUEVO: Check de API Key
+                const apiKey = document.getElementById('api-key').value;
+                if (!apiKey) {
+                    displayError("Please enter your API Key in the settings.");
+                    return;
+                }
+
                 setLoading(true);
                 hideError();
                 
@@ -565,7 +603,10 @@
 
             // --- AI API Call ---
             async function fetchQuizFromAI(settings) {
-                const apiKey = ""; // API key is handled by the environment
+                // MODIFICADO: Leer la API Key del input
+                const apiKey = document.getElementById('api-key').value;
+                if (!apiKey) throw new Error("API Key is missing.");
+                
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
                 const systemPrompt = `You are an expert ESL (English as a Second Language) quiz generator. You follow formatting standards similar to Cambridge and Oxford.
@@ -648,7 +689,10 @@
 
             // --- ✨ New Function: Fetch Topic Explanation ---
             async function fetchExplanation(topic, level, age) {
-                const apiKey = "";
+                // MODIFICADO: Leer la API Key del input
+                const apiKey = document.getElementById('api-key').value;
+                if (!apiKey) throw new Error("API Key is missing.");
+
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
                 const systemPrompt = `You are a friendly and clear ESL tutor. Explain the following grammar topic.
                 Keep the explanation simple and appropriate for the target level and age.
@@ -671,7 +715,10 @@
 
             // --- ✨ New Function: Fetch Answer Explanation ---
             async function fetchAnswerExplanation(question, level) {
-                const apiKey = "";
+                // MODIFICADO: Leer la API Key del input
+                const apiKey = document.getElementById('api-key').value;
+                if (!apiKey) throw new Error("API Key is missing.");
+
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
                 const systemPrompt = `You are an ESL tutor. Explain *why* the correct answer is correct for the given multiple-choice question.
                 Keep the explanation concise (2-3 sentences) and suitable for the student's level.
